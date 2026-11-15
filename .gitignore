@@ -1,0 +1,16 @@
+# build output
+build/
+.gradle/
+out/
+
+# runtime logs
+logs/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# local-only files
+*.pdf

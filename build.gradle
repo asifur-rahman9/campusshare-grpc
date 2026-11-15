@@ -1,0 +1,80 @@
+plugins {
+    id 'application'
+    id 'com.google.protobuf' version '0.9.5'
+}
+
+def grpcVersion = '1.80.0'
+def protobufVersion = '3.25.8'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+}
+
+test {
+    useJUnitPlatform()
+    testLogging { events 'passed', 'failed', 'skipped' }
+}
+
+protobuf {
+    protoc { artifact = "com.google.protobuf:protoc:${protobufVersion}" }
+    plugins {
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
+    }
+    generateProtoTasks {
+        all()*.plugins { grpc {} }
+    }
+}
+
+// Netty (inside grpc-netty-shaded) uses sun.misc.Unsafe; JDK 23+ warns about it unless allowed
+def jvmFlags = JavaVersion.current() >= JavaVersion.toVersion(23) ? ['--sun-misc-unsafe-memory-access=allow'] : []
+
+// ./gradlew installDist -> build/install/drms/bin/drms-server <SGW|LOY|WIL> and bin/drms-web
+application {
+    applicationName = 'drms-server'
+    mainClass = 'server.CampusServer'
+    applicationDefaultJvmArgs = jvmFlags
+}
+
+def webScripts = tasks.register('webStartScripts', CreateStartScripts) {
+    mainClass = 'web.WebServer'
+    applicationName = 'drms-web'
+    defaultJvmOpts = jvmFlags
+    outputDir = layout.buildDirectory.dir('web-scripts').get().asFile
+    classpath = tasks.named('startScripts').get().classpath
+}
+
+distributions {
+    main {
+        distributionBaseName = 'drms'
+        contents { from(webScripts) { into 'bin' } }
+    }
+}
+
+// dev shortcuts: ./gradlew runServer --args=SGW   and   ./gradlew runWeb
+tasks.register('runServer', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'server.CampusServer'
+    jvmArgs jvmFlags
+}
+
+tasks.register('runWeb', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'web.WebServer'
+    jvmArgs jvmFlags
+}

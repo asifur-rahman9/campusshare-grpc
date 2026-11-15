@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package drms;
+
+option java_package = "drms.grpc";
+option java_multiple_files = true;
+
+// Client-facing service: every campus server exposes it.
+// Each reply is the same text the server always produced: "SUCCESS: ...", "REJECTED: ..." or "FAILED: ...".
+service DRMS {
+  // manager operations
+  rpc AddItem (AddItemRequest) returns (Reply);
+  rpc RemoveItem (ItemRequest) returns (Reply);
+  rpc ListAvailableItems (IdRequest) returns (Reply);
+
+  // user operations
+  rpc ReserveItem (BookingRequest) returns (Reply);
+  rpc JoinWaitingQueue (BookingRequest) returns (Reply);
+  rpc UpdateReservation (ReservationRequest) returns (Reply);
+  rpc CancelReservation (ReservationRequest) returns (Reply);
+  rpc FindItem (FindRequest) returns (Reply);
+
+  // dashboard
+  rpc Status (StatusRequest) returns (StatusReply);
+}
+
+// Server-to-server service: carries the OP|field|field messages between campuses.
+service Peer {
+  rpc Call (PeerMessage) returns (PeerMessage);
+}
+
+message Reply {
+  string result = 1;
+}
+
+message IdRequest {
+  string id = 1;
+}
+
+message ItemRequest {
+  string manager_id = 1;
+  string item_id = 2;
+}
+
+message AddItemRequest {
+  string manager_id = 1;
+  string item_id = 2;
+  string item_type = 3;
+  string item_name = 4;
+  int32 quantity = 5;
+}
+
+// reserve / join waiting queue
+message BookingRequest {
+  string user_id = 1;
+  string item_id = 2;
+  string start = 3; // yyyy-MM-dd HH:mm
+  string end = 4;
+}
+
+// update (uses start/end) / cancel (ignores them)
+message ReservationRequest {
+  string user_id = 1;
+  string reservation_id = 2;
+  string start = 3;
+  string end = 4;
+}
+
+message FindRequest {
+  string user_id = 1;
+  string item_type = 2;
+  string start = 3;
+  string end = 4;
+}
+
+message StatusRequest {}
+
+message StatusReply {
+  string campus = 1;
+  int32 items = 2;        // items this campus owns
+  int32 reservations = 3; // reservations on those items
+  int32 waiting = 4;      // requests in their waiting queues
+}
+
+message PeerMessage {
+  string message = 1;
+}
