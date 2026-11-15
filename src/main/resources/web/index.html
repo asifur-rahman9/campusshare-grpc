@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CampusShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Layout: operations workspace on the left, the live campus network and request log on the right. */
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --ink: #16202b;
+    --muted: #5d6b7a;
+    --line: #d8dee5;
+    --accent: #0d6b62;
+    --accent-ink: #ffffff;
+    --accent-soft: #dcefed;
+    --ok: #1d7a45;  --ok-soft: #e3f3e9;
+    --warn: #9a5b00; --warn-soft: #fbefdc;
+    --err: #b3261e;  --err-soft: #fbe6e4;
+    --sgw: #3a5fc8; --loy: #b5487a; --wil: #c27a12;
+    --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1419; --surface: #171e25; --ink: #e5eaef; --muted: #93a1b0; --line: #29333d;
+      --accent: #4fc2b5; --accent-ink: #062521; --accent-soft: #15302d;
+      --ok: #5fcf8d; --ok-soft: #15301f; --warn: #e8ac55; --warn-soft: #33260f; --err: #f2847b; --err-soft: #3a1b19;
+      --sgw: #7d9bf0; --loy: #e27fae; --wil: #e7a64a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1419; --surface: #171e25; --ink: #e5eaef; --muted: #93a1b0; --line: #29333d;
+    --accent: #4fc2b5; --accent-ink: #062521; --accent-soft: #15302d;
+    --ok: #5fcf8d; --ok-soft: #15301f; --warn: #e8ac55; --warn-soft: #33260f; --err: #f2847b; --err-soft: #3a1b19;
+    --sgw: #7d9bf0; --loy: #e27fae; --wil: #e7a64a;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+  [hidden] { display: none !important; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding-block: 24px 48px;
+          padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+  /* header + purpose */
+  .brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .brand h1 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .pitch { margin: 6px 0 0; max-width: 68ch; color: var(--muted); text-wrap: pretty; }
+  .rules { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-top: 18px;
+           background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .rule { background: var(--surface); padding: 12px 14px; }
+  .rule b { display: block; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rule span { color: var(--muted); font-size: 13px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; margin-top: 20px; align-items: start; }
+  .side { position: sticky; top: env(safe-area-inset-top, 0px); display: grid; gap: 16px; }
+  .main { display: grid; gap: 16px; min-width: 0; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; text-wrap: balance; }
+  .card .sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+
+  /* forms */
+  form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field label { font-size: 12px; color: var(--muted); }
+  input, select { font: inherit; font-size: 14px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
+                  background: var(--bg); color: var(--ink); min-width: 0; max-width: 100%; }
+  input.mono { font-family: var(--font-mono); text-transform: uppercase; }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { font: inherit; font-size: 14px; font-weight: 500; padding: 7px 14px; border-radius: 6px; cursor: pointer;
+           border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); }
+  button.quiet { background: transparent; color: var(--accent); }
+  button.small { padding: 3px 10px; font-size: 13px; }
+  button.danger { border-color: var(--err); color: var(--err); background: transparent; }
+  button.danger.armed { background: var(--err); color: var(--surface); }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  /* sign in */
+  .signin { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; }
+  .demo { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font-family: var(--font-mono); font-size: 12px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line);
+          background: var(--bg); color: var(--ink); cursor: pointer; }
+  .chip:hover { border-color: var(--accent); }
+  .chip em { font-family: var(--font-body); font-style: normal; color: var(--muted); }
+  .whoami { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  /* tags, pills, tables */
+  .tag-id { font-family: var(--font-mono); font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .campus-pill { font-family: var(--font-mono); font-size: 11px; font-weight: 500; padding: 1px 7px; border-radius: 4px;
+                 border: 1px solid currentColor; }
+  .c-SGW { color: var(--sgw); } .c-LOY { color: var(--loy); } .c-WIL { color: var(--wil); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+  th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  td.actions { text-align: right; white-space: nowrap; }
+  .meter { display: flex; align-items: center; gap: 8px; }
+  .meter .bar { width: 70px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .meter .bar i { display: block; height: 100%; background: var(--accent); }
+  .state { font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; }
+  .state.on-loan { background: var(--ok-soft); color: var(--ok); }
+  .state.waiting { background: var(--warn-soft); color: var(--warn); }
+  .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+  .notes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+  /* results */
+  .result { margin-top: 12px; padding: 9px 12px; border-radius: 6px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .result.SUCCESS { background: var(--ok-soft); color: var(--ok); }
+  .result.REJECTED { background: var(--warn-soft); color: var(--warn); }
+  .result.FAILED { background: var(--err-soft); color: var(--err); }
+  .result .act { margin-top: 8px; }
+
+  .two { display: grid; gap: 16px; }
+
+  /* network map */
+  .net svg { width: 100%; height: auto; display: block; }
+  .edge { stroke: var(--line); stroke-width: 2; fill: none; }
+  .edge.live { stroke: var(--accent); stroke-dasharray: 7 6; animation: flow 0.7s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset: -26; } }
+  .node circle.disc { fill: var(--surface); stroke-width: 3; }
+  .node.down circle.disc { stroke-dasharray: 4 4; opacity: 0.6; }
+  .node text { fill: var(--ink); font-family: var(--font-body); }
+  .node .code { font-family: var(--font-mono); font-weight: 500; font-size: 15px; }
+  .node .meta { fill: var(--muted); font-size: 11.5px; }
+  .node .status-up { fill: var(--ok); font-size: 11.5px; font-weight: 500; }
+  .node .status-down { fill: var(--err); font-size: 11.5px; font-weight: 500; }
+  .node .home-ring { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 2 4; }
+  .node .home-label { fill: var(--accent); font-size: 8.5px; font-weight: 600; letter-spacing: 0.12em; }
+  .net-caption { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+
+  /* request log */
+  .log { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; display: grid; gap: 8px; }
+  .log li { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .log li:last-child { border-bottom: 0; }
+  .log time { color: var(--muted); font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 12px; }
+  .log .route { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .log .msg { grid-column: 2; overflow-wrap: anywhere; }
+  .dotk { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .k-SUCCESS { background: var(--ok); } .k-REJECTED { background: var(--warn); } .k-FAILED { background: var(--err); }
+
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .side { position: static; }
+    .rules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) { .edge.live { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>CampusShare</h1>
+      <span class="tag">Distributed equipment reservation · gRPC · 3 nodes</span>
+    </div>
+    <p class="pitch">CampusShare manages shared equipment across three campuses. Each campus runs an independent
+      server that is the sole authority for its own inventory. The servers coordinate over gRPC to search
+      availability, place reservations and allocate released units to waiting users, with no shared database
+      and no single point of failure.</p>
+    <div class="rules" aria-label="Reservation policy">
+      <div class="rule"><b>20 h</b><span>Weekly reservation limit per user, Monday to Monday</span></div>
+      <div class="rule"><b>1</b><span>Overlapping reservation per other campus at a time</span></div>
+      <div class="rule"><b>FIFO</b><span>Waiting queue per item, allocated when a unit is released</span></div>
+      <div class="rule"><b>3 nodes</b><span>Independent campus servers with no shared state</span></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="main">
+      <!-- sign in -->
+      <section class="card" id="signinCard">
+        <div class="signin">
+          <form id="login">
+            <div class="field">
+              <label for="loginId">Campus ID</label>
+              <input id="loginId" class="mono" name="id" placeholder="LOYU1111" required size="12" autocomplete="off">
+            </div>
+            <button>Sign in</button>
+          </form>
+          <div class="field">
+            <span class="eyebrow">Sample accounts</span>
+            <div class="demo">
+              <button type="button" class="chip" data-id="SGWM1111">SGWM1111 <em>Manager · SGW</em></button>
+              <button type="button" class="chip" data-id="LOYU1111">LOYU1111 <em>User · LOY</em></button>
+              <button type="button" class="chip" data-id="WILU2222">WILU2222 <em>User · WIL</em></button>
+            </div>
+          </div>
+        </div>
+        <p class="sub" style="margin:12px 0 0">Format: campus code, role (M for manager, U for user), then four digits. Example: SGWM1111.</p>
+        <div id="signinResult"></div>
+      </section>
+
+      <section class="card" id="whoCard" hidden>
+        <div class="whoami">
+          <span class="tag-id" id="whoId"></span>
+          <span class="campus-pill" id="whoCampus"></span>
+          <span class="muted" id="whoRole" style="color:var(--muted)"></span>
+          <button class="quiet small" id="signOut" type="button" style="margin-left:auto">Switch account</button>
+        </div>
+      </section>
+
+      <!-- manager -->
+      <div id="manager" class="main" hidden>
+        <section class="card">
+          <h2>Inventory · <span id="mCampus"></span></h2>
+          <p class="sub">Current availability of items owned by this node. Only this campus's managers can modify it.</p>
+          <div class="table-wrap" id="items"></div>
+          <div id="itemsResult"></div>
+        </section>
+        <section class="card">
+          <h2>Add or update item</h2>
+          <p class="sub">Submitting an existing item ID updates its name and quantity.</p>
+          <form id="addItem">
+            <div class="field"><label for="aTag">Item ID</label><input id="aTag" class="mono" name="itemId" required size="9"></div>
+            <div class="field"><label for="aType">Type</label><input id="aType" name="type" placeholder="Laptop" required size="11"></div>
+            <div class="field"><label for="aName">Name</label><input id="aName" name="name" placeholder="MacBook Air 13" required size="16"></div>
+            <div class="field"><label for="aQty">Quantity</label><input id="aQty" name="quantity" type="number" min="1" value="1" required style="width:84px"></div>
+            <button>Save</button>
+          </form>
+          <div id="addResult"></div>
+        </section>
+      </div>
+
+      <!-- student -->
+      <div id="user" class="main" hidden>
+        <section class="card">
+          <h2>Search availability</h2>
+          <p class="sub">Queries all three nodes in parallel for units available across the full time window.</p>
+          <form id="find">
+            <div class="field"><label for="fType">Type</label>
+              <input id="fType" name="type" list="types" value="Laptop" required size="11">
+              <datalist id="types"><option value="Laptop"><option value="Camera"><option value="Projector"><option value="Tripod"><option value="VR headset"></datalist>
+            </div>
+            <div class="field"><label for="fStart">From</label><input id="fStart" name="start" type="datetime-local" required></div>
+            <div class="field"><label for="fEnd">To</label><input id="fEnd" name="end" type="datetime-local" required></div>
+            <button>Search</button>
+          </form>
+          <div class="table-wrap" id="found" style="margin-top:12px"></div>
+          <div id="findResult"></div>
+        </section>
+
+        <section class="card">
+          <h2>My reservations</h2>
+          <p class="sub">Reservations and queue entries created from this browser.</p>
+          <div class="table-wrap" id="mine"></div>
+          <div id="mineResult"></div>
+        </section>
+
+        <div class="two">
+          <section class="card">
+            <h2>Reserve by item ID</h2>
+            <p class="sub">Reserve a specific item directly from any campus.</p>
+            <form id="reserve">
+              <div class="field"><label for="rTag">Item ID</label><input id="rTag" class="mono" name="itemId" placeholder="SGW1002" required size="9"></div>
+              <div class="field"><label for="rStart">From</label><input id="rStart" name="start" type="datetime-local" required></div>
+              <div class="field"><label for="rEnd">To</label><input id="rEnd" name="end" type="datetime-local" required></div>
+              <button>Reserve</button>
+            </form>
+            <div id="reserveResult"></div>
+          </section>
+          <section class="card">
+            <h2>Modify reservation</h2>
+            <p class="sub">Updates are atomic: the reservation moves to the new window or stays unchanged.</p>
+            <form id="update">
+              <div class="field"><label for="uId">Reservation</label><select id="uId" name="reservationId" required></select></div>
+              <div class="field"><label for="uStart">From</label><input id="uStart" name="start" type="datetime-local" required></div>
+              <div class="field"><label for="uEnd">To</label><input id="uEnd" name="end" type="datetime-local" required></div>
+              <button>Update</button>
+            </form>
+            <div id="updateResult"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <section class="card net">
+        <span class="eyebrow">Cluster status</span>
+        <!-- nodes sit 160 apart on each side; links stop 44 short of every centre so they never touch a node or its home ring -->
+        <svg viewBox="0 0 360 292" role="img" aria-label="Status of the three campus nodes and the gRPC links between them">
+          <path class="edge" id="e-LOY-SGW" d="M128 210 L232 210"/>
+          <path class="edge" id="e-SGW-WIL" d="M110.4 174.8 L153.6 117.2"/>
+          <path class="edge" id="e-LOY-WIL" d="M249.6 174.8 L206.4 117.2"/>
+          <g class="node" id="n-WIL" transform="translate(180 82)"></g>
+          <g class="node" id="n-SGW" transform="translate(84 210)"></g>
+          <g class="node" id="n-LOY" transform="translate(276 210)"></g>
+        </svg>
+        <p class="net-caption" id="netCaption">Highlighted links show inter-node gRPC calls.</p>
+      </section>
+      <section class="card">
+        <span class="eyebrow">Request log</span>
+        <ul class="log" id="log"><li><span></span><span class="msg" style="color:var(--muted)">No requests yet.</span></li></ul>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const CAMPUSES = ['SGW', 'LOY', 'WIL'];
+let me = null;
+let loans = [];
+
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage off */ } },
+};
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+const campusOf = (id) => (id || '').slice(0, 3).toUpperCase();
+const pill = (c) => `<span class="campus-pill c-${esc(c)}">${esc(c)}</span>`;
+const kind = (text) => (text.match(/^(SUCCESS|REJECTED|FAILED)/) || ['', 'FAILED'])[1];
+const clean = (text) => text.replace(/^(SUCCESS|REJECTED|FAILED):\s*/, '');
+const show = (dt) => dt.replace('T', ' ');
+
+// ---- network map -------------------------------------------------------
+function drawNode(c, s) {
+  const up = s && s.up;
+  const home = me && campusOf(me) === c;
+  const below = c !== 'WIL';
+  const y1 = below ? 56 : -54, y2 = below ? 72 : -38;
+  const g = $('#n-' + c);
+  g.classList.toggle('down', !up);
+  g.innerHTML = `
+    ${home ? '<circle class="home-ring" r="38"/>' : ''}
+    <circle class="disc" r="30" style="stroke:var(--${c.toLowerCase()})"/>
+    <text class="code" text-anchor="middle" dy="${home ? 1 : 5}">${c}</text>
+    ${home ? '<text class="home-label" text-anchor="middle" y="15">HOME</text>' : ''}
+    <text class="${up ? 'status-up' : 'status-down'}" text-anchor="middle" y="${y1}">${up ? 'Online' : 'Unreachable'}</text>
+    <text class="meta" text-anchor="middle" y="${y2}">${up ? `${s.items} items · ${s.reservations} active · ${s.waiting} queued` : 'No response'}</text>`;
+}
+
+let lastStatus = null;
+async function refreshStatus() {
+  try {
+    const list = await (await fetch('/api/status', { cache: 'no-store' })).json();
+    lastStatus = Object.fromEntries(list.map(s => [s.campus, s]));
+  } catch (e) {
+    lastStatus = null;
+  }
+  CAMPUSES.forEach(c => drawNode(c, lastStatus && lastStatus[c]));
+  const down = lastStatus ? CAMPUSES.filter(c => !lastStatus[c].up) : CAMPUSES;
+  $('#netCaption').textContent = !lastStatus ? 'Gateway unreachable. Check that the web server is running.'
+    : down.length ? `${3 - down.length} of 3 nodes reachable. ${down.join(' and ')} not responding; remaining nodes continue to serve requests, and cross-node queries time out after 3 s.`
+    : '3 of 3 nodes reachable. Highlighted links show inter-node gRPC calls.';
+}
+
+function pulse(from, targets) {
+  targets.filter(t => t && t !== from).forEach(t => {
+    const edge = $('#e-' + [from, t].sort().join('-'));
+    if (!edge) return;
+    edge.classList.add('live');
+    setTimeout(() => edge.classList.remove('live'), 1600);
+  });
+}
+
+// ---- calls ---------------------------------------------------------------
+async function api(op, fields, route) {
+  const home = campusOf(me);
+  let text;
+  try {
+    const res = await fetch('/api/' + op, { method: 'POST', body: new URLSearchParams({ id: me, ...fields }) });
+    text = await res.text();
+    if (!res.ok && !/^(SUCCESS|REJECTED|FAILED)/.test(text)) text = 'FAILED: ' + text;
+  } catch (e) {
+    text = 'FAILED: Gateway unreachable. Check that the web server is running.';
+  }
+  const targets = (route || []).filter(t => t !== home);
+  pulse(home, targets);
+  log(op, home + (targets.length ? ' → ' + targets.join(', ') : ''), text);
+  refreshStatus();
+  return text;
+}
+
+const LABELS = { addItem: 'Save item', removeItem: 'Remove item', listItems: 'List inventory', reserve: 'Reserve',
+                 joinQueue: 'Join queue', update: 'Modify reservation', cancel: 'Cancel reservation', find: 'Search' };
+function log(op, route, text) {
+  const ul = $('#log');
+  if (!ul.dataset.started) { ul.innerHTML = ''; ul.dataset.started = '1'; }
+  const li = document.createElement('li');
+  const first = clean(text).split('\n')[0].replace(/\s*\(itemID \|.*$/, '');
+  li.innerHTML = `<time>${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</time>
+    <span><span class="dotk k-${kind(text)}"></span><b>${esc(LABELS[op] || op)}</b> <span class="route">${esc(route)}</span></span>
+    <span class="msg">${esc(first)}</span>`;
+  ul.prepend(li);
+}
+
+function result(el, text, extra) {
+  $(el).innerHTML = `<div class="result ${kind(text)}">${esc(clean(text))}${extra || ''}</div>`;
+}
+
+// "  A | B | C" lines after the heading line -> rows
+function rows(text) {
+  return text.split('\n').filter(l => l.startsWith('  ') && l.includes(' | ')).map(l => l.trim().split(' | '));
+}
+
+// inline two-step confirm for destructive buttons
+function armed(btn) {
+  if (btn.classList.contains('armed')) return true;
+  btn.classList.add('armed');
+  const label = btn.textContent;
+  btn.textContent = 'Confirm';
+  setTimeout(() => { btn.classList.remove('armed'); btn.textContent = label; }, 3000);
+  return false;
+}
+
+function fields(form) { return Object.fromEntries(new FormData(form)); }
+
+// ---- sign in -----------------------------------------------------------
+function signIn(id) {
+  id = id.trim().toUpperCase();
+  if (!/^(SGW|LOY|WIL)[MU]\d{4}$/.test(id)) {
+    result('#signinResult', 'REJECTED: Invalid ID. Expected a campus code, role and four digits, such as SGWM1111 or LOYU1111.');
+    return;
+  }
+  me = id;
+  store.set('campusshare.lastId', id);
+  const c = campusOf(id), manager = id[3] === 'M';
+  $('#signinCard').hidden = true;
+  $('#whoCard').hidden = false;
+  $('#whoId').textContent = id;
+  $('#whoCampus').className = 'campus-pill c-' + c;
+  $('#whoCampus').textContent = c;
+  $('#whoRole').textContent = manager ? 'Manager · Requests handled by the ' + c + ' node'
+                                      : 'User · Home node ' + c;
+  $('#manager').hidden = !manager;
+  $('#user').hidden = manager;
+  document.querySelectorAll('.result').forEach(r => r.remove());
+  if (manager) { $('#mCampus').textContent = c; $('#aTag').placeholder = c + '1004'; loadItems(); }
+  else { loans = store.get('campusshare.loans.' + id) || []; renderLoans(); $('#found').innerHTML = ''; }
+  refreshStatus();
+}
+
+$('#login').onsubmit = (e) => { e.preventDefault(); signIn(fields(e.target).id); };
+document.querySelectorAll('.chip').forEach(b => b.onclick = () => signIn(b.dataset.id));
+$('#signOut').onclick = () => {
+  me = null;
+  $('#signinCard').hidden = false; $('#whoCard').hidden = true; $('#manager').hidden = true; $('#user').hidden = true;
+  refreshStatus();
+};
+
+// ---- manager -------------------------------------------------------------
+async function loadItems() {
+  const text = await api('listItems', {});
+  if (kind(text) !== 'SUCCESS') { $('#items').innerHTML = ''; result('#itemsResult', text); return; }
+  $('#itemsResult').innerHTML = '';
+  const data = rows(text);
+  $('#items').innerHTML = !data.length
+    ? `<div class="empty">No items registered at ${esc(campusOf(me))}.</div>`
+    : `<table><thead><tr><th>Item ID</th><th>Type</th><th>Name</th><th>Available</th><th></th></tr></thead><tbody>` +
+      data.map(([tag, type, name, avail]) => {
+        const [, free, total] = (avail.match(/(\d+) of (\d+)/) || [0, 0, 0]).map(Number);
+        return `<tr><td class="tag-id">${esc(tag)}</td><td>${esc(type)}</td><td>${esc(name)}</td>
+          <td><div class="meter"><span class="bar"><i style="width:${total ? (free / total) * 100 : 0}%"></i></span>${free} of ${total}</div></td>
+          <td class="actions"><button class="danger small" data-remove="${esc(tag)}">Remove</button></td></tr>`;
+      }).join('') + '</tbody></table>';
+}
+
+$('#items').onclick = async (e) => {
+  const btn = e.target.closest('[data-remove]');
+  if (!btn || !armed(btn)) return;
+  const text = await api('removeItem', { itemId: btn.dataset.remove });
+  await loadItems();
+  result('#itemsResult', text);
+};
+
+$('#addItem').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = await api('addItem', fields(e.target));
+  result('#addResult', text);
+  if (kind(text) === 'SUCCESS') { e.target.reset(); loadItems(); }
+};
+
+// ---- student -------------------------------------------------------------
+function saveLoans() { store.set('campusshare.loans.' + me, loans); }
+
+// reservation IDs restart when a node restarts, so a new reservation replaces any stale entry with the same ID
+function remember(loan) { loans = loans.filter(l => l.id !== loan.id).concat(loan); }
+
+function renderLoans() {
+  $('#mine').innerHTML = !loans.length
+    ? '<div class="empty">No reservations.</div>'
+    : `<table><thead><tr><th>Reservation</th><th>Item</th><th>From</th><th>To</th><th>Status</th><th></th></tr></thead><tbody>` +
+      loans.map(l => `<tr><td class="tag-id">${esc(l.id)}</td><td><span class="tag-id">${esc(l.item)}</span> ${pill(campusOf(l.item))}</td>
+        <td>${esc(l.start)}</td><td>${esc(l.end)}</td>
+        <td><span class="state ${l.state === 'waiting' ? 'waiting' : 'on-loan'}">${l.state === 'waiting' ? 'Queued' : 'Confirmed'}</span></td>
+        <td class="actions"><button class="danger small" data-cancel="${esc(l.id)}">Cancel</button></td></tr>`).join('') + '</tbody></table>';
+  $('#uId').innerHTML = loans.length
+    ? loans.map(l => `<option value="${esc(l.id)}">${esc(l.id)} · ${esc(l.item)}</option>`).join('')
+    : '<option value="">No reservations</option>';
+}
+
+async function book(itemId, start, end, resultEl) {
+  itemId = itemId.trim().toUpperCase();
+  const text = await api('reserve', { itemId, start, end }, [campusOf(itemId)]);
+  const m = text.match(/Reservation ID: (\S+)/);
+  if (m) {
+    remember({ id: m[1], item: itemId, start: show(start), end: show(end), state: 'confirmed' });
+    saveLoans(); renderLoans();
+    result(resultEl, text);
+    return;
+  }
+  if (text.includes('NO_CAPACITY')) {
+    result(resultEl, 'REJECTED: No units of ' + itemId + ' are available for this window.',
+      `<div class="act"><button class="small" id="joinLine">Join waiting queue</button></div>`);
+    $('#joinLine').onclick = async () => {
+      const q = await api('joinQueue', { itemId, start, end }, [campusOf(itemId)]);
+      const w = q.match(/reservation ID will be (\S+)/);
+      if (w) {
+        remember({ id: w[1], item: itemId, start: show(start), end: show(end), state: 'waiting' });
+        saveLoans(); renderLoans();
+      }
+      result(resultEl, q);
+    };
+    return;
+  }
+  result(resultEl, text);
+}
+
+$('#find').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = fields(e.target);
+  const text = await api('find', f, CAMPUSES);
+  $('#findResult').innerHTML = '';
+  if (kind(text) !== 'SUCCESS') { $('#found').innerHTML = ''; result('#findResult', text); return; }
+  const data = rows(text);
+  const notes = text.split('\n').filter(l => /^\s+(SGW|LOY|WIL):/.test(l)).map(l => {
+    const [c, rest] = l.trim().split(/:\s*/);
+    return `<span>${pill(c)} ${esc(/UNAVAILABLE/.test(rest) ? 'No response within 3 s' : 'No matching items')}</span>`;
+  }).join('');
+  $('#found').innerHTML = (!data.length ? `<div class="empty">No ${esc(f.type)} available on any node for this window.</div>`
+    : `<table><thead><tr><th>Item ID</th><th>Name</th><th>Campus</th><th>Available</th><th></th></tr></thead><tbody>` +
+      data.map(([tag, , name, campus, free]) => `<tr><td class="tag-id">${esc(tag)}</td><td>${esc(name)}</td><td>${pill(campus)}</td>
+        <td>${esc(free)}</td><td class="actions">${Number(free) > 0
+          ? `<button class="small" data-book="${esc(tag)}">Reserve</button>`
+          : `<button class="quiet small" data-book="${esc(tag)}">Join queue</button>`}</td></tr>`).join('') + '</tbody></table>')
+    + (notes ? `<div class="notes">${notes}</div>` : '');
+  $('#found').dataset.start = f.start; $('#found').dataset.end = f.end;
+};
+
+$('#found').onclick = (e) => {
+  const btn = e.target.closest('[data-book]');
+  if (btn) book(btn.dataset.book, $('#found').dataset.start, $('#found').dataset.end, '#findResult');
+};
+
+$('#reserve').onsubmit = (e) => { e.preventDefault(); const f = fields(e.target); book(f.itemId, f.start, f.end, '#reserveResult'); };
+
+$('#update').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = fields(e.target);
+  const loan = loans.find(l => l.id === f.reservationId);
+  const text = await api('update', f, loan ? [campusOf(loan.item)] : []);
+  if (loan && kind(text) === 'SUCCESS') { loan.start = show(f.start); loan.end = show(f.end); saveLoans(); renderLoans(); }
+  result('#updateResult', text);
+};
+
+$('#mine').onclick = async (e) => {
+  const btn = e.target.closest('[data-cancel]');
+  if (!btn || !armed(btn)) return;
+  const loan = loans.find(l => l.id === btn.dataset.cancel);
+  const text = await api('cancel', { reservationId: btn.dataset.cancel }, loan ? [campusOf(loan.item)] : []);
+  // a loan the server no longer knows (e.g. after a restart) is dropped from the list too
+  if (kind(text) === 'SUCCESS' || /not found/.test(text)) { loans = loans.filter(l => l.id !== btn.dataset.cancel); saveLoans(); renderLoans(); }
+  result('#mineResult', text);
+};
+
+// ---- defaults: tomorrow 10:00–12:00 ------------------------------------------
+(function defaults() {
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  ['#fStart', '#rStart', '#uStart'].forEach(s => $(s).value = day + 'T10:00');
+  ['#fEnd', '#rEnd', '#uEnd'].forEach(s => $(s).value = day + 'T12:00');
+  const last = store.get('campusshare.lastId');
+  if (last) $('#loginId').value = last;
+})();
+
+refreshStatus();
+setInterval(refreshStatus, 3000);
+</script>
+</body>
+</html>
